@@ -61,3 +61,13 @@ No external `psql` client is required.
 On startup, the app uses the FACTSTR PostgreSQL bootstrap to create the application database if it does not already exist, then opens the store against that database.
 
 Integration tests create their own unique databases and drop them after the test run.
+
+## Shared Facts
+
+The Rust implementation now defines the initial shared application facts under `src/events/`:
+
+* `tool-registered`
+* `tool-checked-out`
+* `tool-returned`
+
+These definitions describe fact shapes only. Command decisions and query behavior belong in feature slices.
