@@ -83,6 +83,24 @@ curl -X POST http://127.0.0.1:3000/tools/<tool_id>/checkout \
   }'
 ```
 
+### Return Tool
+
+`POST /tools/{tool_id}/return`
+
+Returns `201 Created` with `tool_id`, `returned_at`, and `returned_to_location` on success.
+Returns `404 Not Found` when the tool is unknown.
+Returns `409 Conflict` when the tool is not currently checked out.
+
+```bash
+curl -X POST http://127.0.0.1:3000/tools/<tool_id>/return \
+  -H 'content-type: application/json' \
+  -d '{
+    "returned_at": "2026-05-10T09:00:00Z",
+    "returned_to_location": "warehouse-a",
+    "condition_at_return": "ready"
+  }'
+```
+
 ## Tests
 
 ```bash
@@ -118,3 +136,4 @@ These definitions describe fact shapes only. Command decisions and query behavio
 The Register Tool feature now exists in the Rust implementation and records `tool-registered`.
 It is available through `POST /tools`, returns `201 Created` with `tool_id` and `serial_number`, and returns `409 Conflict` when the serial number is already registered.
 The Check Out Tool feature is available through `POST /tools/{tool_id}/checkout`, returns `201 Created` with `tool_id`, `checked_out_to`, `checked_out_at`, and `due_back_at`, returns `404 Not Found` for unknown tools, and returns `409 Conflict` when a tool is already checked out.
+The Return Tool feature is available through `POST /tools/{tool_id}/return`, returns `201 Created` with `tool_id`, `returned_at`, and `returned_to_location`, returns `404 Not Found` for unknown tools, and returns `409 Conflict` when the tool is not currently checked out.
