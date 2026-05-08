@@ -2,6 +2,8 @@
 mod config;
 #[path = "../src/health.rs"]
 mod health;
+#[path = "../src/http/mod.rs"]
+mod http;
 #[path = "../src/routes.rs"]
 mod routes;
 #[path = "../src/store.rs"]

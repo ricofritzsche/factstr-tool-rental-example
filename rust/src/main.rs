@@ -1,5 +1,6 @@
 mod config;
 mod health;
+mod http;
 mod logging;
 mod routes;
 mod store;

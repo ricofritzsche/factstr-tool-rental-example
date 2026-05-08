@@ -14,7 +14,9 @@ time = { version = "0.3.47", features = ["serde", "serde-well-known", "formattin
 tokio = { version = "1.52.2", features = ["macros", "rt-multi-thread", "net"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
+uuid = { version = "1.18.1", features = ["v4"] }
 
 [dev-dependencies]
+factstr-memory = "0.4.1"
 sqlx = { version = "0.8.6", features = ["postgres", "runtime-tokio-rustls"] }
 tower = "0.5.3"

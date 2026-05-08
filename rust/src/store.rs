@@ -4,9 +4,9 @@ use std::error::Error;
 use std::fmt::{Display, Formatter};
 #[cfg(test)]
 use std::process;
-use std::sync::Arc;
 #[cfg(test)]
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard};
 #[cfg(test)]
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -24,7 +24,7 @@ static NEXT_TEST_DATABASE_ID: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Clone)]
 pub struct AppStore {
-    inner: Arc<PostgresStore>,
+    inner: Arc<Mutex<Box<dyn EventStore + Send>>>,
 }
 
 impl AppStore {
@@ -50,19 +50,97 @@ impl AppStore {
             .map_err(StoreError::Join)?
             .map_err(StoreError::Factstr)?;
 
-        Ok(Self {
-            inner: Arc::new(store),
-        })
+        Ok(Self::from_event_store(store))
+    }
+
+    pub fn from_event_store<T>(store: T) -> Self
+    where
+        T: EventStore + Send + 'static,
+    {
+        Self {
+            inner: Arc::new(Mutex::new(Box::new(store))),
+        }
     }
 
     pub async fn check_connectivity(&self) -> Result<(), StoreError> {
         let store = Arc::clone(&self.inner);
 
-        task::spawn_blocking(move || store.query(&EventQuery::all()))
-            .await
-            .map_err(StoreError::Join)?
-            .map(|_| ())
-            .map_err(StoreError::Factstr)
+        task::spawn_blocking(move || {
+            let store = store.lock().map_err(|_| EventStoreError::BackendFailure {
+                message: "application store lock poisoned".to_owned(),
+            })?;
+
+            store.query(&EventQuery::all())
+        })
+        .await
+        .map_err(StoreError::Join)?
+        .map(|_| ())
+        .map_err(StoreError::Factstr)
+    }
+
+    fn lock_store(&self) -> Result<MutexGuard<'_, Box<dyn EventStore + Send>>, EventStoreError> {
+        self.inner
+            .lock()
+            .map_err(|_| EventStoreError::BackendFailure {
+                message: "application store lock poisoned".to_owned(),
+            })
+    }
+}
+
+impl EventStore for AppStore {
+    fn query(&self, event_query: &EventQuery) -> Result<factstr::QueryResult, EventStoreError> {
+        self.lock_store()?.query(event_query)
+    }
+
+    fn append(
+        &self,
+        new_events: Vec<factstr::NewEvent>,
+    ) -> Result<factstr::AppendResult, EventStoreError> {
+        self.lock_store()?.append(new_events)
+    }
+
+    fn append_if(
+        &self,
+        new_events: Vec<factstr::NewEvent>,
+        context_query: &EventQuery,
+        expected_context_version: Option<u64>,
+    ) -> Result<factstr::AppendResult, EventStoreError> {
+        self.lock_store()?
+            .append_if(new_events, context_query, expected_context_version)
+    }
+
+    fn stream_all(
+        &self,
+        handle: factstr::HandleStream,
+    ) -> Result<factstr::EventStream, EventStoreError> {
+        self.lock_store()?.stream_all(handle)
+    }
+
+    fn stream_to(
+        &self,
+        event_query: &EventQuery,
+        handle: factstr::HandleStream,
+    ) -> Result<factstr::EventStream, EventStoreError> {
+        self.lock_store()?.stream_to(event_query, handle)
+    }
+
+    fn stream_all_durable(
+        &self,
+        durable_stream: &factstr::DurableStream,
+        handle: factstr::HandleStream,
+    ) -> Result<factstr::EventStream, EventStoreError> {
+        self.lock_store()?
+            .stream_all_durable(durable_stream, handle)
+    }
+
+    fn stream_to_durable(
+        &self,
+        durable_stream: &factstr::DurableStream,
+        event_query: &EventQuery,
+        handle: factstr::HandleStream,
+    ) -> Result<factstr::EventStream, EventStoreError> {
+        self.lock_store()?
+            .stream_to_durable(durable_stream, event_query, handle)
     }
 }
 

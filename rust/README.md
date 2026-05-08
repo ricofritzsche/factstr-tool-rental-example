@@ -10,7 +10,7 @@ It currently provides:
 * FACTSTR PostgreSQL store startup
 * `GET /health`
 
-The tool rental domain features are not implemented yet.
+The Rust implementation currently includes the Register Tool command feature. Other tool-rental features are not implemented yet.
 
 ## Configuration
 
@@ -39,6 +39,29 @@ curl http://127.0.0.1:3000/health
 ```
 
 `/health` returns JSON and validates FACTSTR/PostgreSQL store connectivity before returning HTTP 200.
+
+## Endpoints
+
+### Register Tool
+
+`POST /tools`
+
+Returns `201 Created` with `tool_id` and `serial_number` on success.
+Returns `409 Conflict` when the serial number is already registered.
+
+```bash
+curl -X POST http://127.0.0.1:3000/tools \
+  -H 'content-type: application/json' \
+  -d '{
+    "serial_number": "SN-1001",
+    "name": "Rotary Hammer",
+    "category": "drilling",
+    "manufacturer": "Bosch",
+    "model": "GBH 2-26",
+    "home_location": "warehouse-a",
+    "initial_condition": "ready"
+  }'
+```
 
 ## Tests
 
@@ -71,3 +94,6 @@ The Rust implementation now defines the initial shared application facts under `
 * `tool-returned`
 
 These definitions describe fact shapes only. Command decisions and query behavior belong in feature slices.
+
+The Register Tool feature now exists in the Rust implementation and records `tool-registered`.
+It is available through `POST /tools`, returns `201 Created` with `tool_id` and `serial_number`, and returns `409 Conflict` when the serial number is already registered.
