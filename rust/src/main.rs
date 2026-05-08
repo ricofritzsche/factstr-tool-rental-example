@@ -7,6 +7,8 @@ mod store;
 
 use std::error::Error;
 
+use factstr_tool_rental_rust::features::get_inventory::start_projection;
+use factstr_tool_rental_rust::projection_database::ProjectionDatabase;
 use tokio::net::TcpListener;
 use tracing::{error, info};
 
@@ -42,7 +44,34 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
     };
 
-    let app = build_routes(store);
+    let projection_database = match ProjectionDatabase::connect(
+        &config.postgres_admin_url,
+        &config.database_name,
+    )
+    .await
+    {
+        Ok(database) => database,
+        Err(projection_database_error) => {
+            error!(
+                error = %projection_database_error,
+                "failed to initialize projection database infrastructure"
+            );
+            return Err(projection_database_error.into());
+        }
+    };
+
+    let inventory_projection = match start_projection(&store, projection_database).await {
+        Ok(projection) => {
+            info!("get inventory durable projection started");
+            projection
+        }
+        Err(projection_error) => {
+            error!(error = %projection_error, "failed to start get inventory durable projection");
+            return Err(projection_error.into());
+        }
+    };
+
+    let app = build_routes(store, inventory_projection);
     let listener = TcpListener::bind(config.bind_address).await?;
     let listening_address = listener.local_addr()?;
 

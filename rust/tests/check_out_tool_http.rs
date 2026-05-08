@@ -19,6 +19,9 @@ use factstr::{
 };
 use factstr_memory::MemoryStore;
 use factstr_tool_rental_rust::events::{TOOL_CHECKED_OUT_EVENT_TYPE, ToolCheckedOutPayload};
+use factstr_tool_rental_rust::features::get_inventory::{
+    InventoryProjection, start_projection_in_memory,
+};
 use factstr_tool_rental_rust::features::register_tool::{
     RegisterToolRequest, process_request as register_tool,
 };
@@ -31,7 +34,7 @@ async fn post_checkout_returns_201_for_valid_request() -> Result<(), Box<dyn Err
     let memory_store = MemoryStore::new();
     let tool_id = register_sample_tool(&memory_store)?;
     let app_store = store::AppStore::from_event_store(memory_store);
-    let app = routes::build_routes(app_store);
+    let app = build_app(app_store)?;
 
     let response = app
         .oneshot(build_checkout_request(
@@ -80,7 +83,7 @@ async fn post_checkout_returns_201_for_valid_request() -> Result<(), Box<dyn Err
 async fn post_checkout_body_does_not_need_tool_id() -> Result<(), Box<dyn Error>> {
     let memory_store = MemoryStore::new();
     let tool_id = register_sample_tool(&memory_store)?;
-    let app = routes::build_routes(store::AppStore::from_event_store(memory_store));
+    let app = build_app(store::AppStore::from_event_store(memory_store))?;
 
     let response = app
         .oneshot(build_checkout_request(
@@ -100,7 +103,7 @@ async fn post_checkout_body_does_not_need_tool_id() -> Result<(), Box<dyn Error>
 
 #[tokio::test]
 async fn blank_path_tool_id_returns_400() -> Result<(), Box<dyn Error>> {
-    let app = routes::build_routes(store::AppStore::from_event_store(MemoryStore::new()));
+    let app = build_app(store::AppStore::from_event_store(MemoryStore::new()))?;
 
     let response = app
         .oneshot(build_checkout_request(
@@ -189,7 +192,7 @@ async fn invalid_due_back_order_returns_400() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn unknown_tool_returns_404() -> Result<(), Box<dyn Error>> {
-    let app = routes::build_routes(store::AppStore::from_event_store(MemoryStore::new()));
+    let app = build_app(store::AppStore::from_event_store(MemoryStore::new()))?;
 
     let response = app
         .oneshot(build_checkout_request(
@@ -213,7 +216,7 @@ async fn already_checked_out_tool_returns_409() -> Result<(), Box<dyn Error>> {
     let memory_store = MemoryStore::new();
     let tool_id = register_sample_tool(&memory_store)?;
     let app_store = store::AppStore::from_event_store(memory_store);
-    let app = routes::build_routes(app_store.clone());
+    let app = build_app(app_store.clone())?;
 
     let first_response = app
         .clone()
@@ -258,7 +261,10 @@ async fn already_checked_out_tool_returns_409() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn store_error_maps_to_500_without_exposing_raw_error() -> Result<(), Box<dyn Error>> {
-    let app = routes::build_routes(store::AppStore::from_event_store(FailingStore));
+    let app = routes::build_routes(
+        store::AppStore::from_event_store(FailingStore),
+        InventoryProjection::empty(),
+    );
 
     let response = app
         .oneshot(build_checkout_request(
@@ -281,7 +287,7 @@ async fn store_error_maps_to_500_without_exposing_raw_error() -> Result<(), Box<
 async fn setup_registered_app() -> Result<(String, axum::Router), Box<dyn Error>> {
     let memory_store = MemoryStore::new();
     let tool_id = register_sample_tool(&memory_store)?;
-    let app = routes::build_routes(store::AppStore::from_event_store(memory_store));
+    let app = build_app(store::AppStore::from_event_store(memory_store))?;
 
     Ok((tool_id, app))
 }
@@ -321,6 +327,11 @@ fn build_checkout_request(tool_id: &str, body: Value) -> Result<Request<Body>, a
 async fn read_json(response: axum::response::Response) -> Result<Value, Box<dyn Error>> {
     let body = to_bytes(response.into_body(), usize::MAX).await?;
     Ok(serde_json::from_slice(&body)?)
+}
+
+fn build_app(store: store::AppStore) -> Result<axum::Router, Box<dyn Error>> {
+    let inventory_projection = start_projection_in_memory(&store)?;
+    Ok(routes::build_routes(store, inventory_projection))
 }
 
 fn register_sample_tool(store: &impl EventStore) -> Result<String, Box<dyn Error>> {

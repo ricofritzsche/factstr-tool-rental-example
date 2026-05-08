@@ -1,0 +1,643 @@
+{
+    "info": {
+        "name": "FACTSTR Tool Rental API",
+        "description": "Postman collection for testing the FACTSTR tool rental example API. It registers random tools, checks one out, returns it, and reads the inventory projection.",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "baseUrl",
+            "value": "http://localhost:3000",
+            "type": "string"
+        },
+        {
+            "key": "toolId",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "serialNumber",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "checkedOutTo",
+            "value": "",
+            "type": "string"
+        }
+    ],
+    "item": [
+        {
+            "name": "Health",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "{{baseUrl}}/health",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "health"
+                    ]
+                }
+            },
+            "response": [],
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "pm.test('health returns 200', function () {",
+                            "  pm.response.to.have.status(200);",
+                            "});"
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Register Random Tool",
+            "event": [
+                {
+                    "listen": "prerequest",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "const suffix = Date.now() + '-' + Math.floor(Math.random() * 100000);",
+                            "const tools = [",
+                            "  { name: 'Cordless Drill', category: 'Power Tools', manufacturer: 'Bosch', model: 'GSR 18V' },",
+                            "  { name: 'Angle Grinder', category: 'Power Tools', manufacturer: 'Makita', model: 'GA5030' },",
+                            "  { name: 'Laser Measure', category: 'Measuring Tools', manufacturer: 'Leica', model: 'DISTO D2' },",
+                            "  { name: 'Pipe Cutter', category: 'Plumbing Tools', manufacturer: 'RIDGID', model: 'RC-1625' },",
+                            "  { name: 'Impact Driver', category: 'Power Tools', manufacturer: 'DeWalt', model: 'DCF887' }",
+                            "];",
+                            "const selected = tools[Math.floor(Math.random() * tools.length)];",
+                            "pm.collectionVariables.set('serialNumber', 'SN-' + suffix);",
+                            "pm.collectionVariables.set('toolName', selected.name);",
+                            "pm.collectionVariables.set('toolCategory', selected.category);",
+                            "pm.collectionVariables.set('manufacturer', selected.manufacturer);",
+                            "pm.collectionVariables.set('model', selected.model);",
+                            "pm.collectionVariables.set('homeLocation', 'Shelf-' + (1 + Math.floor(Math.random() * 20)));",
+                            "pm.collectionVariables.set('initialCondition', 'usable');"
+                        ]
+                    }
+                },
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "pm.test('register returns 201', function () {",
+                            "  pm.response.to.have.status(201);",
+                            "});",
+                            "const body = pm.response.json();",
+                            "pm.test('register response has tool_id and serial_number', function () {",
+                            "  pm.expect(body.tool_id).to.be.a('string').and.not.empty;",
+                            "  pm.expect(body.serial_number).to.eql(pm.collectionVariables.get('serialNumber'));",
+                            "});",
+                            "pm.collectionVariables.set('toolId', body.tool_id);"
+                        ]
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"serial_number\": \"{{serialNumber}}\",\n  \"name\": \"{{toolName}}\",\n  \"category\": \"{{toolCategory}}\",\n  \"manufacturer\": \"{{manufacturer}}\",\n  \"model\": \"{{model}}\",\n  \"home_location\": \"{{homeLocation}}\",\n  \"initial_condition\": \"{{initialCondition}}\"\n}"
+                },
+                "url": {
+                    "raw": "{{baseUrl}}/tools",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "tools"
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "Register 5 Random Tools",
+            "description": "Run this folder with the Collection Runner. It contains five independent random registration requests.",
+            "item": [
+                {
+                    "name": "Register Random Tool 1",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"serial_number\": \"SN-{{$timestamp}}-{{$randomInt}}-1\",\n  \"name\": \"Cordless Drill\",\n  \"category\": \"Power Tools\",\n  \"manufacturer\": \"Bosch\",\n  \"model\": \"GSR 18V\",\n  \"home_location\": \"Shelf A\",\n  \"initial_condition\": \"usable\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/tools",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "tools"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Register Random Tool 2",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"serial_number\": \"SN-{{$timestamp}}-{{$randomInt}}-2\",\n  \"name\": \"Angle Grinder\",\n  \"category\": \"Power Tools\",\n  \"manufacturer\": \"Makita\",\n  \"model\": \"GA5030\",\n  \"home_location\": \"Shelf B\",\n  \"initial_condition\": \"usable\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/tools",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "tools"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Register Random Tool 3",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"serial_number\": \"SN-{{$timestamp}}-{{$randomInt}}-3\",\n  \"name\": \"Laser Measure\",\n  \"category\": \"Measuring Tools\",\n  \"manufacturer\": \"Leica\",\n  \"model\": \"DISTO D2\",\n  \"home_location\": \"Shelf C\",\n  \"initial_condition\": \"usable\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/tools",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "tools"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Register Random Tool 4",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"serial_number\": \"SN-{{$timestamp}}-{{$randomInt}}-4\",\n  \"name\": \"Pipe Cutter\",\n  \"category\": \"Plumbing Tools\",\n  \"manufacturer\": \"RIDGID\",\n  \"model\": \"RC-1625\",\n  \"home_location\": \"Shelf D\",\n  \"initial_condition\": \"usable\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/tools",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "tools"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Register Random Tool 5",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"serial_number\": \"SN-{{$timestamp}}-{{$randomInt}}-5\",\n  \"name\": \"Impact Driver\",\n  \"category\": \"Power Tools\",\n  \"manufacturer\": \"DeWalt\",\n  \"model\": \"DCF887\",\n  \"home_location\": \"Shelf E\",\n  \"initial_condition\": \"usable\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/tools",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "tools"
+                            ]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Check Out Last Registered Tool",
+            "event": [
+                {
+                    "listen": "prerequest",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "const checkedOutTo = 'Worker-' + Math.floor(Math.random() * 1000);",
+                            "const checkedOutAt = new Date();",
+                            "const dueBackAt = new Date(checkedOutAt.getTime() + 2 * 24 * 60 * 60 * 1000);",
+                            "pm.collectionVariables.set('checkedOutTo', checkedOutTo);",
+                            "pm.collectionVariables.set('checkedOutAt', checkedOutAt.toISOString());",
+                            "pm.collectionVariables.set('dueBackAt', dueBackAt.toISOString());",
+                            "pm.collectionVariables.set('useLocation', 'Jobsite-' + Math.floor(Math.random() * 100));"
+                        ]
+                    }
+                },
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "pm.test('checkout returns 201', function () {",
+                            "  pm.response.to.have.status(201);",
+                            "});",
+                            "const body = pm.response.json();",
+                            "pm.test('checkout response matches tool', function () {",
+                            "  pm.expect(body.tool_id).to.eql(pm.collectionVariables.get('toolId'));",
+                            "  pm.expect(body.checked_out_to).to.eql(pm.collectionVariables.get('checkedOutTo'));",
+                            "});"
+                        ]
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"checked_out_to\": \"{{checkedOutTo}}\",\n  \"checked_out_at\": \"{{checkedOutAt}}\",\n  \"due_back_at\": \"{{dueBackAt}}\",\n  \"use_location\": \"{{useLocation}}\",\n  \"condition_at_checkout\": \"usable\"\n}"
+                },
+                "url": {
+                    "raw": "{{baseUrl}}/tools/{{toolId}}/checkout",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "tools",
+                        "{{toolId}}",
+                        "checkout"
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "Return Last Registered Tool",
+            "event": [
+                {
+                    "listen": "prerequest",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "const returnedAt = new Date();",
+                            "pm.collectionVariables.set('returnedAt', returnedAt.toISOString());",
+                            "pm.collectionVariables.set('returnedToLocation', 'Return Desk');"
+                        ]
+                    }
+                },
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "pm.test('return returns 201', function () {",
+                            "  pm.response.to.have.status(201);",
+                            "});",
+                            "const body = pm.response.json();",
+                            "pm.test('return response matches tool', function () {",
+                            "  pm.expect(body.tool_id).to.eql(pm.collectionVariables.get('toolId'));",
+                            "  pm.expect(body.returned_to_location).to.eql(pm.collectionVariables.get('returnedToLocation'));",
+                            "});"
+                        ]
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"returned_at\": \"{{returnedAt}}\",\n  \"returned_to_location\": \"{{returnedToLocation}}\",\n  \"condition_at_return\": \"usable\"\n}"
+                },
+                "url": {
+                    "raw": "{{baseUrl}}/tools/{{toolId}}/return",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "tools",
+                        "{{toolId}}",
+                        "return"
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "Get Inventory",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "{{baseUrl}}/tools",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "tools"
+                    ]
+                }
+            },
+            "response": [],
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "pm.test('inventory returns 200', function () {",
+                            "  pm.response.to.have.status(200);",
+                            "});",
+                            "const body = pm.response.json();",
+                            "pm.test('inventory has items array', function () {",
+                            "  pm.expect(body.items).to.be.an('array');",
+                            "});"
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "name": "End-to-End: Register, Check Out, Inventory, Return, Inventory",
+            "description": "Run this folder sequentially in the Collection Runner.",
+            "item": [
+                {
+                    "name": "1 Register Random Tool",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "const suffix = Date.now() + '-' + Math.floor(Math.random() * 100000);",
+                                    "pm.collectionVariables.set('serialNumber', 'E2E-' + suffix);",
+                                    "pm.collectionVariables.set('toolName', 'E2E Cordless Drill');",
+                                    "pm.collectionVariables.set('toolCategory', 'Power Tools');"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.response.to.have.status(201);",
+                                    "const body = pm.response.json();",
+                                    "pm.collectionVariables.set('toolId', body.tool_id);"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"serial_number\": \"{{serialNumber}}\",\n  \"name\": \"{{toolName}}\",\n  \"category\": \"{{toolCategory}}\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/tools",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "tools"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "2 Check Out Tool",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "const checkedOutAt = new Date();",
+                                    "const dueBackAt = new Date(checkedOutAt.getTime() + 86400000);",
+                                    "pm.collectionVariables.set('checkedOutTo', 'E2E Worker');",
+                                    "pm.collectionVariables.set('checkedOutAt', checkedOutAt.toISOString());",
+                                    "pm.collectionVariables.set('dueBackAt', dueBackAt.toISOString());"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.response.to.have.status(201);"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"checked_out_to\": \"{{checkedOutTo}}\",\n  \"checked_out_at\": \"{{checkedOutAt}}\",\n  \"due_back_at\": \"{{dueBackAt}}\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/tools/{{toolId}}/checkout",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "tools",
+                                "{{toolId}}",
+                                "checkout"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "3 Get Inventory After Checkout",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.response.to.have.status(200);",
+                                    "const body = pm.response.json();",
+                                    "const tool = body.items.find(item => item.tool_id === pm.collectionVariables.get('toolId'));",
+                                    "pm.test('tool is checked out in inventory', function () {",
+                                    "  pm.expect(tool).to.exist;",
+                                    "  pm.expect(tool.status).to.eql('checked_out');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/tools",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "tools"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "4 Return Tool",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.collectionVariables.set('returnedAt', new Date().toISOString());"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.response.to.have.status(201);"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"returned_at\": \"{{returnedAt}}\",\n  \"returned_to_location\": \"Return Desk\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/tools/{{toolId}}/return",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "tools",
+                                "{{toolId}}",
+                                "return"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "5 Get Inventory After Return",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.response.to.have.status(200);",
+                                    "const body = pm.response.json();",
+                                    "const tool = body.items.find(item => item.tool_id === pm.collectionVariables.get('toolId'));",
+                                    "pm.test('tool is available in inventory', function () {",
+                                    "  pm.expect(tool).to.exist;",
+                                    "  pm.expect(tool.status).to.eql('available');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/tools",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "tools"
+                            ]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        }
+    ]
+}

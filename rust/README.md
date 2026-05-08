@@ -10,7 +10,7 @@ It currently provides:
 * FACTSTR PostgreSQL store startup
 * `GET /health`
 
-The Rust implementation currently includes the Register Tool command feature. Other tool-rental features are not implemented yet.
+The Rust implementation currently includes Register Tool, Check Out Tool, Return Tool, and Get Inventory.
 
 ## Configuration
 
@@ -101,6 +101,20 @@ curl -X POST http://127.0.0.1:3000/tools/<tool_id>/return \
   }'
 ```
 
+### Get Inventory
+
+`GET /tools`
+
+Returns `200 OK` with the maintained current inventory view.
+The view is updated from FACTSTR durable streams.
+Empty inventory returns `{ "items": [] }`.
+FACTSTR stores facts and durable stream cursors in PostgreSQL, and the Get Inventory slice stores its projection state in PostgreSQL under `projections.inventory_items`.
+This keeps the durable cursor and projection state in the same durability boundary across deployment restarts.
+
+```bash
+curl http://127.0.0.1:3000/tools
+```
+
 ## Tests
 
 ```bash
@@ -137,3 +151,4 @@ The Register Tool feature now exists in the Rust implementation and records `too
 It is available through `POST /tools`, returns `201 Created` with `tool_id` and `serial_number`, and returns `409 Conflict` when the serial number is already registered.
 The Check Out Tool feature is available through `POST /tools/{tool_id}/checkout`, returns `201 Created` with `tool_id`, `checked_out_to`, `checked_out_at`, and `due_back_at`, returns `404 Not Found` for unknown tools, and returns `409 Conflict` when a tool is already checked out.
 The Return Tool feature is available through `POST /tools/{tool_id}/return`, returns `201 Created` with `tool_id`, `returned_at`, and `returned_to_location`, returns `404 Not Found` for unknown tools, and returns `409 Conflict` when the tool is not currently checked out.
+The Get Inventory feature is available through `GET /tools`, returns the maintained current inventory view, is updated from FACTSTR durable streams, stores projection state in `projections.inventory_items`, and returns an empty list when no tools have been registered.

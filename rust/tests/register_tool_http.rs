@@ -19,6 +19,9 @@ use factstr::{
 };
 use factstr_memory::MemoryStore;
 use factstr_tool_rental_rust::events::{TOOL_REGISTERED_EVENT_TYPE, ToolRegisteredPayload};
+use factstr_tool_rental_rust::features::get_inventory::{
+    InventoryProjection, start_projection_in_memory,
+};
 use serde_json::{Value, json};
 use tower::util::ServiceExt;
 use uuid::Uuid;
@@ -26,7 +29,7 @@ use uuid::Uuid;
 #[tokio::test]
 async fn post_tools_returns_201_for_valid_request() -> Result<(), Box<dyn Error>> {
     let store = store::AppStore::from_event_store(MemoryStore::new());
-    let app = routes::build_routes(store);
+    let app = build_app(store)?;
 
     let response = app
         .oneshot(
@@ -66,7 +69,7 @@ async fn post_tools_returns_201_for_valid_request() -> Result<(), Box<dyn Error>
 #[tokio::test]
 async fn post_tools_rejects_tool_id_in_request_body() -> Result<(), Box<dyn Error>> {
     let store = store::AppStore::from_event_store(MemoryStore::new());
-    let app = routes::build_routes(store);
+    let app = build_app(store)?;
 
     let response = app
         .oneshot(
@@ -137,7 +140,7 @@ async fn post_tools_returns_400_for_blank_category() -> Result<(), Box<dyn Error
 #[tokio::test]
 async fn post_tools_returns_409_for_duplicate_serial_number() -> Result<(), Box<dyn Error>> {
     let store = store::AppStore::from_event_store(MemoryStore::new());
-    let app = routes::build_routes(store.clone());
+    let app = build_app(store.clone())?;
 
     let first_response = app
         .clone()
@@ -176,7 +179,7 @@ async fn post_tools_returns_409_for_duplicate_serial_number() -> Result<(), Box<
 #[tokio::test]
 async fn post_tools_returns_500_for_store_error() -> Result<(), Box<dyn Error>> {
     let store = store::AppStore::from_event_store(FailingStore);
-    let app = routes::build_routes(store);
+    let app = routes::build_routes(store, InventoryProjection::empty());
 
     let response = app
         .oneshot(build_register_tool_request(json!({
@@ -198,7 +201,7 @@ async fn assert_error_code(
     expected_code: &str,
 ) -> Result<(), Box<dyn Error>> {
     let store = store::AppStore::from_event_store(MemoryStore::new());
-    let app = routes::build_routes(store);
+    let app = build_app(store)?;
 
     let response = app.oneshot(build_register_tool_request(body)?).await?;
 
@@ -219,6 +222,11 @@ fn build_register_tool_request(body: Value) -> Result<Request<Body>, axum::http:
 async fn read_json(response: axum::response::Response) -> Result<Value, Box<dyn Error>> {
     let body = to_bytes(response.into_body(), usize::MAX).await?;
     Ok(serde_json::from_slice(&body)?)
+}
+
+fn build_app(store: store::AppStore) -> Result<axum::Router, Box<dyn Error>> {
+    let inventory_projection = start_projection_in_memory(&store)?;
+    Ok(routes::build_routes(store, inventory_projection))
 }
 
 struct FailingStore;
