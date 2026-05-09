@@ -11,6 +11,7 @@ It currently provides:
 * `GET /health`
 
 The Rust implementation currently includes Register Tool, Check Out Tool, Return Tool, and Get Inventory.
+This Rust example now uses `factstr = "0.5.1"` and `factstr-postgres = "0.5.1"`.
 
 ## Configuration
 
@@ -106,10 +107,10 @@ curl -X POST http://127.0.0.1:3000/tools/<tool_id>/return \
 `GET /tools`
 
 Returns `200 OK` with the maintained current inventory view.
-The view is updated from FACTSTR durable streams.
+The view is updated from FACTSTR async durable stream handlers.
 Empty inventory returns `{ "items": [] }`.
 FACTSTR stores facts and durable stream cursors in PostgreSQL, and the Get Inventory slice stores its projection state in PostgreSQL under `projections.inventory_items`.
-This keeps the durable cursor and projection state in the same durability boundary across deployment restarts.
+The previous local sync-to-async bridge is no longer needed, and projection updates are persisted before the durable cursor advances.
 
 ```bash
 curl http://127.0.0.1:3000/tools

@@ -7,6 +7,7 @@ use std::process;
 #[cfg(test)]
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
+use std::thread;
 #[cfg(test)]
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -85,18 +86,47 @@ impl AppStore {
                 message: "application store lock poisoned".to_owned(),
             })
     }
+
+    fn run_store_operation<R, F>(&self, operation: F) -> Result<R, EventStoreError>
+    where
+        R: Send,
+        F: FnOnce(&mut (dyn EventStore + Send)) -> Result<R, EventStoreError> + Send,
+    {
+        if tokio::runtime::Handle::try_current().is_ok() {
+            let inner = Arc::clone(&self.inner);
+
+            thread::scope(|scope| {
+                scope
+                    .spawn(move || {
+                        let mut store =
+                            inner.lock().map_err(|_| EventStoreError::BackendFailure {
+                                message: "application store lock poisoned".to_owned(),
+                            })?;
+
+                        operation(store.as_mut())
+                    })
+                    .join()
+                    .map_err(|_| EventStoreError::BackendFailure {
+                        message: "application store worker thread panicked".to_owned(),
+                    })?
+            })
+        } else {
+            let mut store = self.lock_store()?;
+            operation(store.as_mut())
+        }
+    }
 }
 
 impl EventStore for AppStore {
     fn query(&self, event_query: &EventQuery) -> Result<factstr::QueryResult, EventStoreError> {
-        self.lock_store()?.query(event_query)
+        self.run_store_operation(|store| store.query(event_query))
     }
 
     fn append(
         &self,
         new_events: Vec<factstr::NewEvent>,
     ) -> Result<factstr::AppendResult, EventStoreError> {
-        self.lock_store()?.append(new_events)
+        self.run_store_operation(|store| store.append(new_events))
     }
 
     fn append_if(
@@ -105,15 +135,16 @@ impl EventStore for AppStore {
         context_query: &EventQuery,
         expected_context_version: Option<u64>,
     ) -> Result<factstr::AppendResult, EventStoreError> {
-        self.lock_store()?
-            .append_if(new_events, context_query, expected_context_version)
+        self.run_store_operation(|store| {
+            store.append_if(new_events, context_query, expected_context_version)
+        })
     }
 
     fn stream_all(
         &self,
         handle: factstr::HandleStream,
     ) -> Result<factstr::EventStream, EventStoreError> {
-        self.lock_store()?.stream_all(handle)
+        self.run_store_operation(|store| store.stream_all(handle))
     }
 
     fn stream_to(
@@ -121,7 +152,7 @@ impl EventStore for AppStore {
         event_query: &EventQuery,
         handle: factstr::HandleStream,
     ) -> Result<factstr::EventStream, EventStoreError> {
-        self.lock_store()?.stream_to(event_query, handle)
+        self.run_store_operation(|store| store.stream_to(event_query, handle))
     }
 
     fn stream_all_durable(
@@ -129,8 +160,7 @@ impl EventStore for AppStore {
         durable_stream: &factstr::DurableStream,
         handle: factstr::HandleStream,
     ) -> Result<factstr::EventStream, EventStoreError> {
-        self.lock_store()?
-            .stream_all_durable(durable_stream, handle)
+        self.run_store_operation(|store| store.stream_all_durable(durable_stream, handle))
     }
 
     fn stream_to_durable(
@@ -139,8 +169,9 @@ impl EventStore for AppStore {
         event_query: &EventQuery,
         handle: factstr::HandleStream,
     ) -> Result<factstr::EventStream, EventStoreError> {
-        self.lock_store()?
-            .stream_to_durable(durable_stream, event_query, handle)
+        self.run_store_operation(|store| {
+            store.stream_to_durable(durable_stream, event_query, handle)
+        })
     }
 }
 

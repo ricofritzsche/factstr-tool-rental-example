@@ -213,7 +213,7 @@ async fn get_tools_orders_by_category_name_and_serial_number() -> Result<(), Box
 #[tokio::test]
 async fn get_tools_reads_the_maintained_projection_without_direct_store_queries()
 -> Result<(), Box<dyn Error>> {
-    let projection_source_store = MemoryStore::new();
+    let projection_source_store = store::AppStore::from_event_store(MemoryStore::new());
     seed_registered_tool(
         &projection_source_store,
         "tool-1",

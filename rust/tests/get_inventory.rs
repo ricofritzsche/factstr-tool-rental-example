@@ -5,7 +5,6 @@ mod store;
 
 use std::env;
 use std::str::FromStr;
-use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
@@ -58,6 +57,10 @@ fn projection_runtime_has_no_sqlite_or_local_file_dependencies() {
     assert!(!start_projection_rs.contains("ProjectionPersistBridge"));
     assert!(!start_projection_rs.contains("PersistCommand"));
     assert!(!start_projection_rs.contains("mpsc::"));
+    assert!(!start_projection_rs.contains("block_in_place"));
+    assert!(!start_projection_rs.contains("block_on"));
+    assert!(!start_projection_rs.contains("new_current_thread"));
+    assert!(!start_projection_rs.contains("thread::spawn"));
 }
 
 #[test]
@@ -484,7 +487,7 @@ fn projection_failure_does_not_advance_durable_cursor() -> Result<(), Box<dyn st
     let failing_stream = store.stream_to_durable(
         &durable_stream,
         &query,
-        Arc::new(|_| {
+        factstr::HandleStream::new(|_| async {
             Err(StreamHandlerError::new(
                 "simulated inventory projection persistence failure",
             ))

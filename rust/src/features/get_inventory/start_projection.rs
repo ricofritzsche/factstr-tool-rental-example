@@ -1,11 +1,9 @@
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::thread;
 
 use factstr::{
     DurableStream, EventFilter, EventQuery, EventStore, EventStream, HandleStream,
     StreamHandlerError,
 };
-use tokio::runtime::{Handle, RuntimeFlavor};
 
 use crate::events::{
     TOOL_CHECKED_OUT_EVENT_TYPE, TOOL_REGISTERED_EVENT_TYPE, TOOL_RETURNED_EVENT_TYPE,
@@ -102,24 +100,29 @@ fn attach_durable_stream(
         TOOL_RETURNED_EVENT_TYPE,
     ])]);
     let durable_stream = DurableStream::new(GET_INVENTORY_DURABLE_STREAM_NAME);
-    let handle: HandleStream = Arc::new(move |event_records| {
-        let mut projection_state = projection_state
-            .lock()
-            .map_err(|_| StreamHandlerError::new("inventory projection lock poisoned"))?;
+    let handle = HandleStream::new(move |event_records| {
+        let projection_state = Arc::clone(&projection_state);
+        let projection_store = projection_store.clone();
 
-        for event_record in event_records {
-            let fact = decode_fact(&event_record)
-                .map_err(|error| StreamHandlerError::new(error.to_string()))?;
-
-            if let Some(projection_store) = &projection_store {
-                persist_fact(projection_store, &fact)
+        async move {
+            for event_record in event_records {
+                let fact = decode_fact(&event_record)
                     .map_err(|error| StreamHandlerError::new(error.to_string()))?;
+
+                if let Some(projection_store) = &projection_store {
+                    persist_fact_async(projection_store, &fact)
+                        .await
+                        .map_err(|error| StreamHandlerError::new(error.to_string()))?;
+                }
+
+                let mut projection_state = projection_state
+                    .lock()
+                    .map_err(|_| StreamHandlerError::new("inventory projection lock poisoned"))?;
+                apply_fact(&mut projection_state, &fact);
             }
 
-            apply_fact(&mut projection_state, &fact);
+            Ok(())
         }
-
-        Ok(())
     });
 
     let event_stream = store
@@ -128,55 +131,6 @@ fn attach_durable_stream(
 
     Ok(projection.with_stream(event_stream))
 }
-
-fn persist_fact(
-    projection_store: &ProjectionStore,
-    fact: &InventoryFact,
-) -> Result<(), InventoryProjectionError> {
-    if matches!(fact, InventoryFact::Ignored) {
-        return Ok(());
-    }
-
-    let projection_store = projection_store.clone();
-    let fact = fact.clone();
-
-    match Handle::try_current() {
-        Ok(handle) => match handle.runtime_flavor() {
-            RuntimeFlavor::MultiThread => tokio::task::block_in_place(move || {
-                handle.block_on(persist_fact_async(&projection_store, &fact))
-            }),
-            RuntimeFlavor::CurrentThread => {
-                persist_fact_on_temporary_thread(projection_store, fact)
-            }
-            _ => persist_fact_on_local_runtime(projection_store, fact),
-        },
-        Err(_) => persist_fact_on_local_runtime(projection_store, fact),
-    }
-}
-
-fn persist_fact_on_temporary_thread(
-    projection_store: ProjectionStore,
-    fact: InventoryFact,
-) -> Result<(), InventoryProjectionError> {
-    thread::spawn(move || persist_fact_on_local_runtime(projection_store, fact))
-        .join()
-        .map_err(|_| {
-            InventoryProjectionError::store_error("projection persistence thread panicked")
-        })?
-}
-
-fn persist_fact_on_local_runtime(
-    projection_store: ProjectionStore,
-    fact: InventoryFact,
-) -> Result<(), InventoryProjectionError> {
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .map_err(InventoryProjectionError::store_error)?;
-
-    runtime.block_on(async move { persist_fact_async(&projection_store, &fact).await })
-}
-
 async fn persist_fact_async(
     projection_store: &ProjectionStore,
     fact: &InventoryFact,
