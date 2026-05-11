@@ -1,4 +1,4 @@
-# FACTSTR Tool Rental Example
+# Self-Contained Feature Slices and Event Sourcing: Tool Rental Example
 
 ## Purpose
 
@@ -9,6 +9,13 @@ The current implemented version is the Rust implementation. The repository is st
 Implementation-specific setup, run, and test instructions belong in each implementation README.
 
 Rust implementation: [rust/README.md](rust/README.md)
+
+## FACTSTR
+
+This example is built with FACTSTR.
+
+- GitHub: https://github.com/ricofritzsche/factstr
+- Website: https://factstr.com
 
 ## Domain Scope
 
