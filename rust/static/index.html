@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FACTSTR Tool Rental</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="page-header">
+        <div>
+          <h1>FACTSTR Tool Rental Example</h1>
+          <p class="subtle">Reference UI for the Rust example API.</p>
+        </div>
+        <div class="live-status" id="live-status" data-state="connecting">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="live-status-text">Connecting live updates…</span>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Register Tool</h2>
+          </div>
+          <form id="register-form" class="form-grid">
+            <label>
+              <span>Serial Number</span>
+              <input name="serial_number" required />
+            </label>
+            <label>
+              <span>Name</span>
+              <input name="name" required />
+            </label>
+            <label>
+              <span>Category</span>
+              <input name="category" required />
+            </label>
+            <label>
+              <span>Manufacturer</span>
+              <input name="manufacturer" />
+            </label>
+            <label>
+              <span>Model</span>
+              <input name="model" />
+            </label>
+            <label>
+              <span>Home Location</span>
+              <input name="home_location" />
+            </label>
+            <label>
+              <span>Initial Condition</span>
+              <input name="initial_condition" />
+            </label>
+            <div class="form-actions">
+              <button id="random-tool-button" type="button">Generate Random Tool</button>
+              <button id="register-button" type="submit">Register Tool</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>Inventory</h2>
+              <p class="subtle">Maintained from the current projection.</p>
+            </div>
+            <button id="refresh-button" type="button">Refresh</button>
+          </div>
+
+          <div id="message" class="message" hidden></div>
+          <div id="inventory-status" class="inventory-status">Loading inventory…</div>
+          <div id="inventory-list" class="inventory-list"></div>
+        </section>
+      </main>
+
+      <footer class="page-footer">
+        <p>
+          Powered by FACTSTR
+          <a href="https://factstr.com" target="_blank" rel="noreferrer">factstr.com</a>
+        </p>
+      </footer>
+    </div>
+
+    <template id="inventory-item-template">
+      <article class="inventory-item">
+        <div class="inventory-item-main">
+          <div>
+            <h3 class="tool-name"></h3>
+            <div class="tool-meta"></div>
+          </div>
+          <span class="status-badge"></span>
+        </div>
+        <dl class="tool-details"></dl>
+        <div class="item-actions"></div>
+      </article>
+    </template>
+
+    <dialog id="checkout-dialog">
+      <form id="checkout-form" method="dialog" class="dialog-form">
+        <h3>Check Out Tool</h3>
+        <input type="hidden" name="tool_id" />
+        <label>
+          <span>Checked Out To</span>
+          <input name="checked_out_to" required />
+        </label>
+        <label>
+          <span>Due Back At</span>
+          <input name="due_back_at" type="datetime-local" required />
+        </label>
+        <div class="dialog-actions">
+          <button type="button" data-close-dialog>Cancel</button>
+          <button id="checkout-submit-button" type="submit">Check Out</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>

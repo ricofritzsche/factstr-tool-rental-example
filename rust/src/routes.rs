@@ -12,6 +12,7 @@ use crate::http::get_inventory::get_inventory_handler;
 use crate::http::get_inventory_events::get_inventory_events_handler;
 use crate::http::register_tool::register_tool;
 use crate::http::return_tool::return_tool;
+use crate::http::ui::{app_js_handler, index_handler, styles_css_handler};
 use crate::store::AppStore;
 
 #[derive(Clone)]
@@ -27,6 +28,9 @@ pub fn build_routes(
     inventory_change_notifier: InventoryChangeNotifier,
 ) -> Router {
     Router::new()
+        .route("/", get(index_handler))
+        .route("/app.js", get(app_js_handler))
+        .route("/styles.css", get(styles_css_handler))
         .route("/health", get(health))
         .route("/tools/events", get(get_inventory_events_handler))
         .route("/tools", get(get_inventory_handler).post(register_tool))

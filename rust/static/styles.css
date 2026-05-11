@@ -1,0 +1,285 @@
+:root {
+  color-scheme: light;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.4;
+  background: #f5f7fa;
+  color: #18212b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f5f7fa;
+  color: #18212b;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: 1px solid #0f3b66;
+  background: #0f3b66;
+  color: #fff;
+  border-radius: 0.55rem;
+  padding: 0.7rem 1rem;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+input {
+  width: 100%;
+  border: 1px solid #ccd4dd;
+  border-radius: 0.55rem;
+  padding: 0.7rem 0.8rem;
+  background: #fff;
+}
+
+.page {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 2rem 1rem 3rem;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+}
+
+.page-header h1,
+.panel-header h2,
+.tool-name {
+  margin: 0;
+}
+
+.subtle {
+  margin: 0.35rem 0 0;
+  color: #566575;
+}
+
+.live-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #fff;
+  border: 1px solid #d8e0e7;
+  border-radius: 999px;
+  padding: 0.55rem 0.8rem;
+  color: #3d4d5d;
+}
+
+.status-dot {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 999px;
+  background: #d8a300;
+}
+
+.live-status[data-state="connected"] .status-dot {
+  background: #1d8b4f;
+}
+
+.live-status[data-state="disconnected"] .status-dot {
+  background: #b33a3a;
+}
+
+.layout {
+  display: grid;
+  gap: 1rem;
+}
+
+.page-footer {
+  margin-top: 1.5rem;
+  padding: 0.25rem 0;
+  color: #566575;
+  font-size: 0.95rem;
+}
+
+.page-footer p {
+  margin: 0;
+}
+
+.page-footer a {
+  color: #0f3b66;
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid #d8e0e7;
+  border-radius: 1rem;
+  padding: 1.1rem;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.form-grid label,
+.dialog-form label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-start;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.message {
+  margin-bottom: 1rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: 0.75rem;
+}
+
+.message[data-type="success"] {
+  background: #e9f7ef;
+  color: #165c37;
+}
+
+.message[data-type="error"] {
+  background: #fff0f0;
+  color: #8a1f1f;
+}
+
+.inventory-status {
+  margin-bottom: 0.8rem;
+  color: #566575;
+}
+
+.inventory-list {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.inventory-item {
+  border: 1px solid #d8e0e7;
+  border-radius: 0.9rem;
+  padding: 1rem;
+}
+
+.inventory-item-main {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 0.9rem;
+}
+
+.tool-meta {
+  margin-top: 0.3rem;
+  color: #566575;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.92rem;
+  background: #ebf3fb;
+  color: #0f3b66;
+}
+
+.status-badge[data-status="checked_out"] {
+  background: #fff4dd;
+  color: #8a5b00;
+}
+
+.tool-details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
+
+.tool-details div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.tool-details dt {
+  color: #566575;
+  font-size: 0.9rem;
+}
+
+.tool-details dd {
+  margin: 0;
+}
+
+.item-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+dialog {
+  border: none;
+  border-radius: 1rem;
+  padding: 0;
+  width: min(26rem, calc(100vw - 2rem));
+}
+
+dialog::backdrop {
+  background: rgba(24, 33, 43, 0.3);
+}
+
+.dialog-form {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.1rem;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.7rem;
+}
+
+.dialog-actions button[type="button"] {
+  border-color: #ccd4dd;
+  background: #fff;
+  color: #18212b;
+}
+
+#random-tool-button {
+  border-color: #ccd4dd;
+  background: #fff;
+  color: #18212b;
+}
+
+@media (max-width: 760px) {
+  .page-header,
+  .panel-header,
+  .inventory-item-main {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .form-grid,
+  .tool-details {
+    grid-template-columns: 1fr;
+  }
+}

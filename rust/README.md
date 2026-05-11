@@ -12,6 +12,7 @@ It currently provides:
 
 The Rust implementation currently includes Register Tool, Check Out Tool, Return Tool, and Get Inventory.
 This Rust example now uses `factstr = "0.5.1"` and `factstr-postgres = "0.5.1"`.
+The app also serves a simple built-in browser UI at `GET /` with no frontend build step.
 
 ## Configuration
 
@@ -117,6 +118,14 @@ Projection updates are persisted before the durable cursor advances.
 Returns a Server-Sent Events stream that emits `inventory-changed`.
 Clients should refetch `GET /tools` when they receive the event.
 The SSE payload is only an invalidation signal, not the inventory view.
+
+### Browser UI
+
+`GET /`
+
+Serves a simple built-in UI for manual testing.
+The UI uses `GET /tools` as the inventory source and listens to `GET /tools/events` for cross-tab updates.
+No frontend build step is required.
 
 ```bash
 curl http://127.0.0.1:3000/tools
