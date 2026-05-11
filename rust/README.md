@@ -11,7 +11,7 @@ It currently provides:
 * `GET /health`
 
 The Rust implementation currently includes Register Tool, Check Out Tool, Return Tool, and Get Inventory.
-This Rust example now uses `factstr = "0.5.1"` and `factstr-postgres = "0.5.1"`.
+This Rust example now uses `factstr = "0.5.2"` and `factstr-postgres = "0.5.2"`.
 The app also serves a simple built-in browser UI at `GET /` with no frontend build step.
 
 ## Configuration

@@ -313,9 +313,9 @@ dependencies = [
 
 [[package]]
 name = "factstr"
-version = "0.5.1"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e090d061d6eeaf90105ecd5de51eed25b6c22ae40ad49f60988d47d643af5c4"
+checksum = "3ce8e6da793a4539eb4b6949466c2ca314cf7416571f1a5121278d1f38f0a03a"
 dependencies = [
  "serde_json",
  "time",
@@ -323,9 +323,9 @@ dependencies = [
 
 [[package]]
 name = "factstr-memory"
-version = "0.5.1"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6f05806e69ebd1563b24861f50de3ee82616cd5e45880de539d5e75808ea80c"
+checksum = "318bcdd6216fb0f585d83d8393c6efcdc9147bd5a23b06b6855ca133bb094bf6"
 dependencies = [
  "factstr",
  "serde_json",
@@ -335,9 +335,9 @@ dependencies = [
 
 [[package]]
 name = "factstr-postgres"
-version = "0.5.1"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a75dd980f7b56377b51d02674cdcf53d3a812b245938424d11f138fe0132a74a"
+checksum = "fea072e44a8c064b4713f872a58a61ed5b24c294033b88c194bc4f4a51512a7f"
 dependencies = [
  "factstr",
  "serde_json",

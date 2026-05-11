@@ -7,8 +7,8 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 axum = "0.8.9"
 dotenvy = "0.15.7"
-factstr = "0.5.1"
-factstr-postgres = "0.5.1"
+factstr = "0.5.2"
+factstr-postgres = "0.5.2"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 sqlx = { version = "0.8.6", features = ["postgres", "runtime-tokio-rustls", "time"] }
@@ -20,5 +20,5 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
 uuid = { version = "1.18.1", features = ["v4"] }
 
 [dev-dependencies]
-factstr-memory = "0.5.1"
+factstr-memory = "0.5.2"
 tower = "0.5.3"
