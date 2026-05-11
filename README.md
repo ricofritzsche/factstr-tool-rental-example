@@ -1,4 +1,4 @@
-# Self-Contained Feature Slices and Event Sourcing: Tool Rental Example
+# Tool Rental Example: Command-Context Consistency and Fact-First Thinking with FACTSTR
 
 ## Purpose
 
