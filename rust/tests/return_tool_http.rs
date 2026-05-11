@@ -22,7 +22,7 @@ use factstr_tool_rental_rust::features::check_out_tool::{
     CheckOutToolRequest, process_request as check_out_tool,
 };
 use factstr_tool_rental_rust::features::get_inventory::{
-    InventoryProjection, start_projection_in_memory,
+    InventoryChangeNotifier, InventoryProjection, start_projection_in_memory_with_notifier,
 };
 use factstr_tool_rental_rust::features::register_tool::{
     RegisterToolRequest, process_request as register_tool,
@@ -198,6 +198,7 @@ async fn store_error_maps_to_500_without_exposing_raw_error() -> Result<(), Box<
     let app = routes::build_routes(
         store::AppStore::from_event_store(FailingStore),
         InventoryProjection::empty(),
+        InventoryChangeNotifier::new(),
     );
 
     let response = app
@@ -274,8 +275,14 @@ async fn read_json(response: axum::response::Response) -> Result<Value, Box<dyn 
 }
 
 fn build_app(store: store::AppStore) -> Result<axum::Router, Box<dyn Error>> {
-    let inventory_projection = start_projection_in_memory(&store)?;
-    Ok(routes::build_routes(store, inventory_projection))
+    let inventory_change_notifier = InventoryChangeNotifier::new();
+    let inventory_projection =
+        start_projection_in_memory_with_notifier(&store, inventory_change_notifier.clone())?;
+    Ok(routes::build_routes(
+        store,
+        inventory_projection,
+        inventory_change_notifier,
+    ))
 }
 
 fn parse_time(value: &str) -> Result<time::OffsetDateTime, time::error::Parse> {

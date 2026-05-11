@@ -9,6 +9,7 @@ use crate::events::{
     TOOL_CHECKED_OUT_EVENT_TYPE, TOOL_REGISTERED_EVENT_TYPE, TOOL_RETURNED_EVENT_TYPE,
 };
 use crate::features::get_inventory::apply_fact::{InventoryFact, apply_fact, decode_fact};
+use crate::features::get_inventory::inventory_change_notifier::InventoryChangeNotifier;
 use crate::features::get_inventory::inventory_item::InventoryItem;
 use crate::features::get_inventory::inventory_projection::{
     InventoryProjectionError, InventoryProjectionState,
@@ -69,6 +70,14 @@ pub async fn start_projection(
     store: &impl EventStore,
     projection_database: ProjectionDatabase,
 ) -> Result<InventoryProjection, InventoryProjectionError> {
+    start_projection_with_notifier(store, projection_database, InventoryChangeNotifier::new()).await
+}
+
+pub async fn start_projection_with_notifier(
+    store: &impl EventStore,
+    projection_database: ProjectionDatabase,
+    inventory_change_notifier: InventoryChangeNotifier,
+) -> Result<InventoryProjection, InventoryProjectionError> {
     projection_database
         .initialize_schema(GET_INVENTORY_DURABLE_STREAM_NAME, &schema_statements())
         .await
@@ -78,19 +87,37 @@ pub async fn start_projection(
     let items = projection_store.list_items().await?;
     let projection = InventoryProjection::from_items(items);
 
-    attach_durable_stream(store, projection, Some(projection_store))
+    attach_durable_stream(
+        store,
+        projection,
+        Some(projection_store),
+        inventory_change_notifier,
+    )
 }
 
 pub fn start_projection_in_memory(
     store: &impl EventStore,
 ) -> Result<InventoryProjection, InventoryProjectionError> {
-    attach_durable_stream(store, InventoryProjection::empty(), None)
+    start_projection_in_memory_with_notifier(store, InventoryChangeNotifier::new())
+}
+
+pub fn start_projection_in_memory_with_notifier(
+    store: &impl EventStore,
+    inventory_change_notifier: InventoryChangeNotifier,
+) -> Result<InventoryProjection, InventoryProjectionError> {
+    attach_durable_stream(
+        store,
+        InventoryProjection::empty(),
+        None,
+        inventory_change_notifier,
+    )
 }
 
 fn attach_durable_stream(
     store: &impl EventStore,
     projection: InventoryProjection,
     projection_store: Option<ProjectionStore>,
+    inventory_change_notifier: InventoryChangeNotifier,
 ) -> Result<InventoryProjection, InventoryProjectionError> {
     let projection_state = projection.state_handle();
 
@@ -103,6 +130,7 @@ fn attach_durable_stream(
     let handle = HandleStream::new(move |event_records| {
         let projection_state = Arc::clone(&projection_state);
         let projection_store = projection_store.clone();
+        let inventory_change_notifier = inventory_change_notifier.clone();
 
         async move {
             for event_record in event_records {
@@ -119,6 +147,10 @@ fn attach_durable_stream(
                     .lock()
                     .map_err(|_| StreamHandlerError::new("inventory projection lock poisoned"))?;
                 apply_fact(&mut projection_state, &fact);
+
+                if !matches!(fact, InventoryFact::Ignored) {
+                    inventory_change_notifier.notify_inventory_changed();
+                }
             }
 
             Ok(())

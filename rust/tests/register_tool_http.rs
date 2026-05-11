@@ -20,7 +20,7 @@ use factstr::{
 use factstr_memory::MemoryStore;
 use factstr_tool_rental_rust::events::{TOOL_REGISTERED_EVENT_TYPE, ToolRegisteredPayload};
 use factstr_tool_rental_rust::features::get_inventory::{
-    InventoryProjection, start_projection_in_memory,
+    InventoryChangeNotifier, InventoryProjection, start_projection_in_memory_with_notifier,
 };
 use serde_json::{Value, json};
 use tower::util::ServiceExt;
@@ -179,7 +179,11 @@ async fn post_tools_returns_409_for_duplicate_serial_number() -> Result<(), Box<
 #[tokio::test]
 async fn post_tools_returns_500_for_store_error() -> Result<(), Box<dyn Error>> {
     let store = store::AppStore::from_event_store(FailingStore);
-    let app = routes::build_routes(store, InventoryProjection::empty());
+    let app = routes::build_routes(
+        store,
+        InventoryProjection::empty(),
+        InventoryChangeNotifier::new(),
+    );
 
     let response = app
         .oneshot(build_register_tool_request(json!({
@@ -225,8 +229,14 @@ async fn read_json(response: axum::response::Response) -> Result<Value, Box<dyn 
 }
 
 fn build_app(store: store::AppStore) -> Result<axum::Router, Box<dyn Error>> {
-    let inventory_projection = start_projection_in_memory(&store)?;
-    Ok(routes::build_routes(store, inventory_projection))
+    let inventory_change_notifier = InventoryChangeNotifier::new();
+    let inventory_projection =
+        start_projection_in_memory_with_notifier(&store, inventory_change_notifier.clone())?;
+    Ok(routes::build_routes(
+        store,
+        inventory_projection,
+        inventory_change_notifier,
+    ))
 }
 
 struct FailingStore;

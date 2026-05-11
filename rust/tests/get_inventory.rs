@@ -17,8 +17,10 @@ use factstr_tool_rental_rust::events::{
 use factstr_tool_rental_rust::features::{
     check_out_tool::{CheckOutToolRequest, process_request as check_out_tool},
     get_inventory::{
-        InventoryItem, InventoryProjection, InventoryStatus, get_inventory,
-        projection_schema::schema_statements, start_projection, start_projection_in_memory,
+        InventoryChangeNotifier, InventoryItem, InventoryProjection, InventoryStatus,
+        get_inventory, projection_schema::schema_statements, start_projection,
+        start_projection_in_memory, start_projection_in_memory_with_notifier,
+        start_projection_with_notifier,
     },
     register_tool::{RegisterToolRequest, process_request as register_tool},
 };
@@ -298,6 +300,33 @@ fn future_committed_facts_update_the_projection_after_startup()
     Ok(())
 }
 
+#[test]
+fn subscribers_receive_inventory_changed_after_projection_updates()
+-> Result<(), Box<dyn std::error::Error>> {
+    let store = MemoryStore::new();
+    let inventory_change_notifier = InventoryChangeNotifier::new();
+    let mut subscriber = inventory_change_notifier.subscribe();
+    let _projection = start_projection_in_memory_with_notifier(&store, inventory_change_notifier)?;
+
+    append_registered_tool(
+        &store,
+        ToolRegisteredPayload {
+            tool_id: "tool-1".to_owned(),
+            serial_number: "SN-1001".to_owned(),
+            name: "Rotary Hammer".to_owned(),
+            category: "drilling".to_owned(),
+            manufacturer: "Bosch".to_owned(),
+            model: "GBH 2-26".to_owned(),
+            home_location: "warehouse-a".to_owned(),
+            initial_condition: "ready".to_owned(),
+        },
+    )?;
+
+    eventually_notification(&mut subscriber)?;
+
+    Ok(())
+}
+
 #[tokio::test]
 async fn durable_projection_survives_restart_with_persisted_state()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -427,6 +456,65 @@ async fn durable_projection_catches_up_after_restart() -> Result<(), Box<dyn std
 }
 
 #[tokio::test]
+async fn projection_persistence_failures_do_not_notify_subscribers()
+-> Result<(), Box<dyn std::error::Error>> {
+    let _ = dotenvy::dotenv();
+
+    let admin_url = match env::var("FACTSTR_TOOL_RENTAL_POSTGRES_ADMIN_URL") {
+        Ok(value) => value,
+        Err(_) => {
+            eprintln!(
+                "skipping inventory notification failure test: FACTSTR_TOOL_RENTAL_POSTGRES_ADMIN_URL is not set"
+            );
+            return Ok(());
+        }
+    };
+
+    let mut test_database = store::TestDatabase::create(&admin_url).await?;
+    let store = test_database.open_store().await?;
+    let projection_database =
+        ProjectionDatabase::connect(&admin_url, test_database.database_name()).await?;
+    let inventory_change_notifier = InventoryChangeNotifier::new();
+    let mut subscriber = inventory_change_notifier.subscribe();
+    let _projection = start_projection_with_notifier(
+        &store,
+        projection_database.clone(),
+        inventory_change_notifier,
+    )
+    .await?;
+
+    let projection_pool = projection_database.connect_pool().await?;
+    sqlx::query("DROP TABLE projections.inventory_items")
+        .execute(&projection_pool)
+        .await?;
+    projection_pool.close().await;
+
+    append_registered_tool(
+        &store,
+        ToolRegisteredPayload {
+            tool_id: "tool-1".to_owned(),
+            serial_number: "SN-1001".to_owned(),
+            name: "Rotary Hammer".to_owned(),
+            category: "drilling".to_owned(),
+            manufacturer: "Bosch".to_owned(),
+            model: "GBH 2-26".to_owned(),
+            home_location: "warehouse-a".to_owned(),
+            initial_condition: "ready".to_owned(),
+        },
+    )?;
+
+    thread::sleep(Duration::from_millis(100));
+    assert!(matches!(
+        subscriber.try_recv(),
+        Err(tokio::sync::broadcast::error::TryRecvError::Empty)
+    ));
+
+    test_database.cleanup().await?;
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn projection_store_creates_postgresql_schema_and_table()
 -> Result<(), Box<dyn std::error::Error>> {
     let _ = dotenvy::dotenv();
@@ -515,6 +603,24 @@ fn projection_failure_does_not_advance_durable_cursor() -> Result<(), Box<dyn st
     assert_eq!(items[0].tool_id, "tool-1");
 
     Ok(())
+}
+
+fn eventually_notification(
+    subscriber: &mut tokio::sync::broadcast::Receiver<()>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    for _ in 0..40 {
+        match subscriber.try_recv() {
+            Ok(()) => return Ok(()),
+            Err(tokio::sync::broadcast::error::TryRecvError::Empty) => {
+                thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => {
+                return Err(format!("inventory change notification failed: {error}").into());
+            }
+        }
+    }
+
+    Err("timed out waiting for inventory change notification".into())
 }
 
 fn seed_registered_tool(

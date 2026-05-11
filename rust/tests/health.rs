@@ -14,7 +14,9 @@ use std::error::Error;
 
 use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode};
-use factstr_tool_rental_rust::features::get_inventory::start_projection_in_memory;
+use factstr_tool_rental_rust::features::get_inventory::{
+    InventoryChangeNotifier, start_projection_in_memory_with_notifier,
+};
 use serde_json::Value;
 use tower::util::ServiceExt;
 
@@ -34,8 +36,10 @@ async fn health_returns_ok_when_store_is_reachable() -> Result<(), Box<dyn Error
 
     let mut test_database = store::TestDatabase::create(&admin_url).await?;
     let store = test_database.open_store().await?;
-    let inventory_projection = start_projection_in_memory(&store)?;
-    let app = routes::build_routes(store, inventory_projection);
+    let inventory_change_notifier = InventoryChangeNotifier::new();
+    let inventory_projection =
+        start_projection_in_memory_with_notifier(&store, inventory_change_notifier.clone())?;
+    let app = routes::build_routes(store, inventory_projection, inventory_change_notifier);
 
     let response = app
         .clone()

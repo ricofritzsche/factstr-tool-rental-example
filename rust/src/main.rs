@@ -7,7 +7,9 @@ mod store;
 
 use std::error::Error;
 
-use factstr_tool_rental_rust::features::get_inventory::start_projection;
+use factstr_tool_rental_rust::features::get_inventory::{
+    InventoryChangeNotifier, start_projection_with_notifier,
+};
 use factstr_tool_rental_rust::projection_database::ProjectionDatabase;
 use tokio::net::TcpListener;
 use tracing::{error, info};
@@ -60,7 +62,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
     };
 
-    let inventory_projection = match start_projection(&store, projection_database).await {
+    let inventory_change_notifier = InventoryChangeNotifier::new();
+    let inventory_projection = match start_projection_with_notifier(
+        &store,
+        projection_database,
+        inventory_change_notifier.clone(),
+    )
+    .await
+    {
         Ok(projection) => {
             info!("get inventory durable projection started");
             projection
@@ -71,7 +80,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
     };
 
-    let app = build_routes(store, inventory_projection);
+    let app = build_routes(store, inventory_projection, inventory_change_notifier);
     let listener = TcpListener::bind(config.bind_address).await?;
     let listening_address = listener.local_addr()?;
 

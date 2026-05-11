@@ -110,7 +110,13 @@ Returns `200 OK` with the maintained current inventory view.
 The view is updated from FACTSTR async durable stream handlers.
 Empty inventory returns `{ "items": [] }`.
 FACTSTR stores facts and durable stream cursors in PostgreSQL, and the Get Inventory slice stores its projection state in PostgreSQL under `projections.inventory_items`.
-The previous local sync-to-async bridge is no longer needed, and projection updates are persisted before the durable cursor advances.
+Projection updates are persisted before the durable cursor advances.
+
+`GET /tools/events`
+
+Returns a Server-Sent Events stream that emits `inventory-changed`.
+Clients should refetch `GET /tools` when they receive the event.
+The SSE payload is only an invalidation signal, not the inventory view.
 
 ```bash
 curl http://127.0.0.1:3000/tools
@@ -152,4 +158,4 @@ The Register Tool feature now exists in the Rust implementation and records `too
 It is available through `POST /tools`, returns `201 Created` with `tool_id` and `serial_number`, and returns `409 Conflict` when the serial number is already registered.
 The Check Out Tool feature is available through `POST /tools/{tool_id}/checkout`, returns `201 Created` with `tool_id`, `checked_out_to`, `checked_out_at`, and `due_back_at`, returns `404 Not Found` for unknown tools, and returns `409 Conflict` when a tool is already checked out.
 The Return Tool feature is available through `POST /tools/{tool_id}/return`, returns `201 Created` with `tool_id`, `returned_at`, and `returned_to_location`, returns `404 Not Found` for unknown tools, and returns `409 Conflict` when the tool is not currently checked out.
-The Get Inventory feature is available through `GET /tools`, returns the maintained current inventory view, is updated from FACTSTR durable streams, stores projection state in `projections.inventory_items`, and returns an empty list when no tools have been registered.
+The Get Inventory feature is available through `GET /tools`, returns the maintained current inventory view, is updated from FACTSTR durable streams, stores projection state in `projections.inventory_items`, and returns an empty list when no tools have been registered. `GET /tools/events` provides an `inventory-changed` SSE invalidation signal so browsers can refetch the current view.

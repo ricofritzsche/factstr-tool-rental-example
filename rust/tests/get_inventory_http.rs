@@ -22,7 +22,8 @@ use factstr_tool_rental_rust::events::{
     ToolCheckedOutPayload, ToolRegisteredPayload, ToolReturnedPayload,
 };
 use factstr_tool_rental_rust::features::get_inventory::{
-    InventoryProjection, get_inventory, start_projection_in_memory,
+    InventoryChangeNotifier, InventoryProjection, get_inventory,
+    start_projection_in_memory_with_notifier,
 };
 use serde_json::{Value, json, to_value};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
@@ -32,8 +33,10 @@ use tower::util::ServiceExt;
 async fn get_tools_returns_200_with_empty_inventory() -> Result<(), Box<dyn Error>> {
     let memory_store = MemoryStore::new();
     let app_store = store::AppStore::from_event_store(memory_store);
-    let projection = start_projection_in_memory(&app_store)?;
-    let app = routes::build_routes(app_store, projection);
+    let inventory_change_notifier = InventoryChangeNotifier::new();
+    let projection =
+        start_projection_in_memory_with_notifier(&app_store, inventory_change_notifier.clone())?;
+    let app = routes::build_routes(app_store, projection, inventory_change_notifier);
 
     let response = app
         .oneshot(Request::builder().uri("/tools").body(Body::empty())?)
@@ -70,8 +73,10 @@ async fn registered_checked_out_and_returned_tools_appear_in_inventory()
     )?;
 
     let app_store = store::AppStore::from_event_store(memory_store);
-    let projection = start_projection_in_memory(&app_store)?;
-    let app = routes::build_routes(app_store, projection);
+    let inventory_change_notifier = InventoryChangeNotifier::new();
+    let projection =
+        start_projection_in_memory_with_notifier(&app_store, inventory_change_notifier.clone())?;
+    let app = routes::build_routes(app_store, projection, inventory_change_notifier);
     let payload = eventually_get_tools(&app, |payload| {
         payload["items"]
             .as_array()
@@ -126,8 +131,10 @@ async fn returned_tools_appear_as_available() -> Result<(), Box<dyn Error>> {
     )?;
 
     let app_store = store::AppStore::from_event_store(memory_store);
-    let projection = start_projection_in_memory(&app_store)?;
-    let app = routes::build_routes(app_store, projection);
+    let inventory_change_notifier = InventoryChangeNotifier::new();
+    let projection =
+        start_projection_in_memory_with_notifier(&app_store, inventory_change_notifier.clone())?;
+    let app = routes::build_routes(app_store, projection, inventory_change_notifier);
     let payload = eventually_get_tools(&app, |payload| {
         payload["items"]
             .as_array()
@@ -148,8 +155,10 @@ async fn returned_tools_appear_as_available() -> Result<(), Box<dyn Error>> {
 async fn future_committed_facts_update_http_inventory_after_startup() -> Result<(), Box<dyn Error>>
 {
     let app_store = store::AppStore::from_event_store(MemoryStore::new());
-    let projection = start_projection_in_memory(&app_store)?;
-    let app = routes::build_routes(app_store.clone(), projection);
+    let inventory_change_notifier = InventoryChangeNotifier::new();
+    let projection =
+        start_projection_in_memory_with_notifier(&app_store, inventory_change_notifier.clone())?;
+    let app = routes::build_routes(app_store.clone(), projection, inventory_change_notifier);
 
     seed_registered_tool(&app_store, "tool-1", "drilling", "Angle Drill", "SN-1001")?;
 
@@ -185,8 +194,10 @@ async fn get_tools_orders_by_category_name_and_serial_number() -> Result<(), Box
     )?;
 
     let app_store = store::AppStore::from_event_store(memory_store);
-    let projection = start_projection_in_memory(&app_store)?;
-    let app = routes::build_routes(app_store, projection);
+    let inventory_change_notifier = InventoryChangeNotifier::new();
+    let projection =
+        start_projection_in_memory_with_notifier(&app_store, inventory_change_notifier.clone())?;
+    let app = routes::build_routes(app_store, projection, inventory_change_notifier);
     let payload = eventually_get_tools(&app, |payload| {
         payload["items"]
             .as_array()
@@ -221,7 +232,10 @@ async fn get_tools_reads_the_maintained_projection_without_direct_store_queries(
         "Angle Drill",
         "SN-1001",
     )?;
-    let projection = start_projection_in_memory(&projection_source_store)?;
+    let projection = start_projection_in_memory_with_notifier(
+        &projection_source_store,
+        InventoryChangeNotifier::new(),
+    )?;
     let payload = eventually_inventory_payload(&projection, |payload| {
         payload["items"]
             .as_array()
@@ -229,13 +243,45 @@ async fn get_tools_reads_the_maintained_projection_without_direct_store_queries(
     })?;
     assert_eq!(payload["items"][0]["tool_id"], "tool-1");
 
-    let app = routes::build_routes(store::AppStore::from_event_store(FailingStore), projection);
+    let app = routes::build_routes(
+        store::AppStore::from_event_store(FailingStore),
+        projection,
+        InventoryChangeNotifier::new(),
+    );
     let response = app
         .oneshot(Request::builder().uri("/tools").body(Body::empty())?)
         .await?;
 
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(read_json(response).await?["items"][0]["tool_id"], "tool-1");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn get_tools_events_returns_sse_response() -> Result<(), Box<dyn Error>> {
+    let app_store = store::AppStore::from_event_store(MemoryStore::new());
+    let inventory_change_notifier = InventoryChangeNotifier::new();
+    let projection =
+        start_projection_in_memory_with_notifier(&app_store, inventory_change_notifier.clone())?;
+    let app = routes::build_routes(app_store, projection, inventory_change_notifier);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/tools/events")
+                .body(Body::empty())?,
+        )
+        .await?;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response
+            .headers()
+            .get(axum::http::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok()),
+        Some("text/event-stream")
+    );
 
     Ok(())
 }
