@@ -41,6 +41,9 @@ The Rust implementation currently includes:
 
 ## Design Ideas Demonstrated
 
+For a longer explanation of the feature-slice approach used here, see:
+[How I structure self-contained feature slices](https://medium.com/@rico-fritzsche/how-i-structure-self-contained-feature-slices-a31d17df5628?sk=826aa678f4b8bf45679f6218cf35c8eb)
+
 - Shared facts  
   The implementation shares application fact definitions such as `tool-registered`, `tool-checked-out`, and `tool-returned` while keeping feature behavior local.
 

@@ -1,170 +1,194 @@
-# Rust API Bootstrap
+# Rust Implementation
 
-This Rust app is the initial HTTP API bootstrap for the FACTSTR tool rental example.
+## What This Contains
 
-It currently provides:
+This is the Rust implementation of the FACTSTR tool rental reference app.
 
-* explicit environment-based configuration
-* startup logging
-* PostgreSQL database creation/opening
-* FACTSTR PostgreSQL store startup
-* `GET /health`
+For a longer explanation of the feature-slice approach used here, see:
+[How I structure self-contained feature slices](https://medium.com/@rico-fritzsche/how-i-structure-self-contained-feature-slices-a31d17df5628?sk=826aa678f4b8bf45679f6218cf35c8eb)
 
-The Rust implementation currently includes Register Tool, Check Out Tool, Return Tool, and Get Inventory.
-This Rust example now uses `factstr = "0.5.2"` and `factstr-postgres = "0.5.2"`.
-The app also serves a simple built-in browser UI at `GET /` with no frontend build step.
+It currently includes:
+
+- PostgreSQL-backed FACTSTR store
+- Register Tool
+- Check Out Tool
+- Return Tool
+- Get Inventory
+- PostgreSQL-backed inventory projection under `projections.inventory_items`
+- async durable stream projection updates
+- built-in browser UI at `GET /`
+- SSE inventory invalidation at `GET /tools/events`
+
+This implementation uses `factstr = "0.5.2"` and `factstr-postgres = "0.5.2"`.
+
+## Requirements
+
+- Rust toolchain
+- PostgreSQL database/server reachable through the configured admin URL
 
 ## Configuration
 
-Required environment variables:
+Environment variables:
 
-```text
-FACTSTR_TOOL_RENTAL_POSTGRES_ADMIN_URL
-FACTSTR_TOOL_RENTAL_DATABASE_NAME
-FACTSTR_TOOL_RENTAL_BIND_ADDRESS
-```
+- `FACTSTR_TOOL_RENTAL_POSTGRES_ADMIN_URL`
+  Required. No default.
+- `FACTSTR_TOOL_RENTAL_DATABASE_NAME`
+  Optional. Default: `factstr_tool_rental`
+- `FACTSTR_TOOL_RENTAL_BIND_ADDRESS`
+  Optional. Default: `127.0.0.1:3000`
 
-Suggested values are shown in `.env.example`.
-
-You can copy `.env.example` to `.env` for local development. The app loads `.env` automatically when present.
+If a `.env` file is present, it is loaded automatically.
 
 ## Run
 
 ```bash
+cd rust
 cargo run
 ```
 
-## Health Check
+Then open:
 
-```bash
-curl http://127.0.0.1:3000/health
+```text
+http://127.0.0.1:3000/
 ```
 
-`/health` returns JSON and validates FACTSTR/PostgreSQL store connectivity before returning HTTP 200.
+## Built-In UI
 
-## Endpoints
+- `GET /` serves the built-in browser UI.
+- No frontend build step is required.
+- Static assets live under `rust/static/`.
+- The UI uses `GET /tools` as the inventory source.
+- The UI listens to `GET /tools/events` for cross-tab refresh.
 
-### Register Tool
+## API Endpoints
 
-`POST /tools`
+### `GET /health`
 
-Returns `201 Created` with `tool_id` and `serial_number` on success.
-Returns `409 Conflict` when the serial number is already registered.
+Checks that the service is running and the store is reachable.
 
-```bash
-curl -X POST http://127.0.0.1:3000/tools \
-  -H 'content-type: application/json' \
-  -d '{
-    "serial_number": "SN-1001",
-    "name": "Rotary Hammer",
-    "category": "drilling",
-    "manufacturer": "Bosch",
-    "model": "GBH 2-26",
-    "home_location": "warehouse-a",
-    "initial_condition": "ready"
-  }'
+- Success: `200 OK`
+
+### `GET /tools`
+
+Returns the maintained current inventory view.
+
+- Success: `200 OK`
+
+### `POST /tools`
+
+Registers a new tool.
+
+- Success: `201 Created`
+- Request body:
+
+```json
+{
+  "serial_number": "SN-1001",
+  "name": "Rotary Hammer",
+  "category": "drilling",
+  "manufacturer": "Bosch",
+  "model": "GBH 2-26",
+  "home_location": "warehouse-a",
+  "initial_condition": "ready"
+}
 ```
 
-### Check Out Tool
+- Important status mappings:
+  - `400 Bad Request` for invalid or blank required fields
+  - `409 Conflict` for `serial_number_already_registered`
+  - `500 Internal Server Error` for `store_error`
 
-`POST /tools/{tool_id}/checkout`
+### `GET /tools/events`
 
-Returns `201 Created` with `tool_id`, `checked_out_to`, `checked_out_at`, and `due_back_at` on success.
-Returns `404 Not Found` when the tool is unknown.
-Returns `409 Conflict` when the tool is already checked out.
+Returns the inventory invalidation stream.
 
-```bash
-curl -X POST http://127.0.0.1:3000/tools/<tool_id>/checkout \
-  -H 'content-type: application/json' \
-  -d '{
-    "checked_out_to": "Team Alpha",
-    "checked_out_at": "2026-05-08T09:00:00Z",
-    "due_back_at": "2026-05-09T09:00:00Z",
-    "use_location": "job-site-7",
-    "condition_at_checkout": "ready"
-  }'
+- Success: `200 OK`
+- Response type: Server-Sent Events
+- Emits `inventory-changed`
+
+### `POST /tools/{tool_id}/checkout`
+
+Checks out an available tool.
+
+- Success: `201 Created`
+- Request body:
+
+```json
+{
+  "checked_out_to": "Team Alpha",
+  "checked_out_at": "2026-05-08T09:00:00Z",
+  "due_back_at": "2026-05-09T09:00:00Z",
+  "use_location": "job-site-7",
+  "condition_at_checkout": "ready"
+}
 ```
 
-### Return Tool
+- Important status mappings:
+  - `400 Bad Request` for invalid input such as missing fields or invalid due-back ordering
+  - `404 Not Found` for `tool_not_registered`
+  - `409 Conflict` for `tool_already_checked_out`
+  - `500 Internal Server Error` for `store_error`
 
-`POST /tools/{tool_id}/return`
+### `POST /tools/{tool_id}/return`
 
-Returns `201 Created` with `tool_id`, `returned_at`, and `returned_to_location` on success.
-Returns `404 Not Found` when the tool is unknown.
-Returns `409 Conflict` when the tool is not currently checked out.
+Returns a checked-out tool.
 
-```bash
-curl -X POST http://127.0.0.1:3000/tools/<tool_id>/return \
-  -H 'content-type: application/json' \
-  -d '{
-    "returned_at": "2026-05-10T09:00:00Z",
-    "returned_to_location": "warehouse-a",
-    "condition_at_return": "ready"
-  }'
+- Success: `201 Created`
+- Request body:
+
+```json
+{
+  "returned_at": "2026-05-10T09:00:00Z",
+  "returned_to_location": "warehouse-a",
+  "condition_at_return": "ready"
+}
 ```
 
-### Get Inventory
+- Important status mappings:
+  - `400 Bad Request` for invalid input such as missing required fields
+  - `404 Not Found` for `tool_not_registered`
+  - `409 Conflict` for `tool_not_checked_out`
+  - `500 Internal Server Error` for `store_error`
 
-`GET /tools`
+## Projection Persistence
 
-Returns `200 OK` with the maintained current inventory view.
-The view is updated from FACTSTR async durable stream handlers.
-Empty inventory returns `{ "items": [] }`.
-FACTSTR stores facts and durable stream cursors in PostgreSQL, and the Get Inventory slice stores its projection state in PostgreSQL under `projections.inventory_items`.
-Projection updates are persisted before the durable cursor advances.
+- FACTSTR stores facts and durable stream cursors in PostgreSQL.
+- Get Inventory stores its projection state in PostgreSQL under `projections.inventory_items`.
+- Projection updates are persisted before the durable cursor advances.
+- `GET /tools` reads the maintained projection.
+- `GET /tools/events` only emits an invalidation signal.
 
-`GET /tools/events`
+## Source Layout
 
-Returns a Server-Sent Events stream that emits `inventory-changed`.
-Clients should refetch `GET /tools` when they receive the event.
-The SSE payload is only an invalidation signal, not the inventory view.
-
-### Browser UI
-
-`GET /`
-
-Serves a simple built-in UI for manual testing.
-The UI uses `GET /tools` as the inventory source and listens to `GET /tools/events` for cross-tab updates.
-No frontend build step is required.
-
-```bash
-curl http://127.0.0.1:3000/tools
+```text
+src/events/
+src/features/
+src/http/
+src/projection_database.rs
+src/routes.rs
+src/store.rs
+static/
 ```
+
+- `src/events/`: shared fact definitions
+- `src/features/`: feature slices
+- `src/http/`: HTTP handlers and HTTP response mapping
+- `src/projection_database.rs`: projection database infrastructure
+- `src/routes.rs`: route composition
+- `src/store.rs`: FACTSTR store boundary
+- `static/`: browser UI assets
 
 ## Tests
 
 ```bash
+cd rust
 cargo test
 ```
 
-PostgreSQL-backed lifecycle tests:
+PostgreSQL-backed tests require `FACTSTR_TOOL_RENTAL_POSTGRES_ADMIN_URL`.
 
-```bash
-FACTSTR_TOOL_RENTAL_POSTGRES_ADMIN_URL=postgres://postgres:postgres@localhost:5432/postgres cargo test
-```
+The test suite creates and drops unique test databases for PostgreSQL-backed cases.
 
-`cargo test` also loads `.env` automatically when present.
-The configured PostgreSQL user must be allowed to create and drop test databases.
-No external `psql` client is required.
+## License
 
-## Database Creation
-
-On startup, the app uses the FACTSTR PostgreSQL bootstrap to create the application database if it does not already exist, then opens the store against that database.
-
-Integration tests create their own unique databases and drop them after the test run.
-
-## Shared Facts
-
-The Rust implementation now defines the initial shared application facts under `src/events/`:
-
-* `tool-registered`
-* `tool-checked-out`
-* `tool-returned`
-
-These definitions describe fact shapes only. Command decisions and query behavior belong in feature slices.
-
-The Register Tool feature now exists in the Rust implementation and records `tool-registered`.
-It is available through `POST /tools`, returns `201 Created` with `tool_id` and `serial_number`, and returns `409 Conflict` when the serial number is already registered.
-The Check Out Tool feature is available through `POST /tools/{tool_id}/checkout`, returns `201 Created` with `tool_id`, `checked_out_to`, `checked_out_at`, and `due_back_at`, returns `404 Not Found` for unknown tools, and returns `409 Conflict` when a tool is already checked out.
-The Return Tool feature is available through `POST /tools/{tool_id}/return`, returns `201 Created` with `tool_id`, `returned_at`, and `returned_to_location`, returns `404 Not Found` for unknown tools, and returns `409 Conflict` when the tool is not currently checked out.
-The Get Inventory feature is available through `GET /tools`, returns the maintained current inventory view, is updated from FACTSTR durable streams, stores projection state in `projections.inventory_items`, and returns an empty list when no tools have been registered. `GET /tools/events` provides an `inventory-changed` SSE invalidation signal so browsers can refetch the current view.
+See the repository-level [license section](../README.md#license).
